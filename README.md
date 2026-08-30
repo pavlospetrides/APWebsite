@@ -43,20 +43,22 @@ Do not publish publicly until the visible placeholders have been replaced. No ad
 1. Create a Supabase project.
 2. In the SQL Editor, run `supabase/migrations/202608300001_initial_schema.sql`. This creates `projects`, `project_images`, `appointment_requests`, `admin_users`, indexes, RLS policies and the private `project-images` bucket.
 3. Copy Project URL and anon key into `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Copy the service-role key into the server-only `SUPABASE_SERVICE_ROLE_KEY`. Never expose or prefix it with `NEXT_PUBLIC_`.
+4. Keep the service-role key in the server-only `SUPABASE_SERVICE_ROLE_KEY` variable if it is needed for future maintenance tooling. The current application does not read or use it. Never expose it or prefix it with `NEXT_PUBLIC_`.
 5. Restart the local server after changing environment variables.
 
-The service-role key is used only by the server appointment endpoint. Public project reads use the anon key and RLS; image URLs are time-limited signed URLs from the private bucket.
+The appointment endpoint, public project reads and signed-image requests use the publishable/anon key and are constrained by RLS. Ordinary admin operations use the authenticated admin session and RLS. The application never uses the service-role key.
 
 ## Create the first admin
 
 1. In Supabase Dashboard, go to Authentication → Users and create the owner with email and password.
-2. Copy that user's UUID.
-3. Run this once in the SQL Editor, replacing the UUID:
+2. Run this once in the SQL Editor, replacing the placeholder with the same email address:
 
    ```sql
    insert into public.admin_users (user_id)
-   values ('USER_UUID_HERE');
+   select id
+   from auth.users
+   where email = 'ADMIN_EMAIL_HERE'
+   on conflict (user_id) do nothing;
    ```
 
 Only authenticated users present in `admin_users` pass the admin RLS checks. The `/admin` route is not linked from the public navigation and is marked `noindex`.

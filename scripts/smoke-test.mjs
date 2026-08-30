@@ -6,7 +6,7 @@ const cases = [
   ['/el/renovations', 'Η εγκατάσταση προσαρμόζεται'], ['/en/new-builds', 'electrical infrastructure'],
   ['/el/repairs', 'Πρώτα βρίσκουμε την αιτία'], ['/en/projects', 'Projects &amp; example services'],
   ['/el/projects/new-home-installation-example', 'Ηλεκτρολογική εγκατάσταση νέας κατοικίας'],
-  ['/en/contact', 'Send the key information'], ['/admin', 'Ρύθμιση διαχείρισης'],
+  ['/en/contact', 'Send the key information'], ['/admin', '(Ρύθμιση διαχείρισης|Σύνδεση διαχειριστή|Έλεγχος ασφαλούς πρόσβασης)'],
   ['/robots.txt', 'Disallow: /admin'], ['/sitemap.xml', '/en/contact'],
 ];
 
