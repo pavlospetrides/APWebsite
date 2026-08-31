@@ -5,6 +5,7 @@ import { AppointmentForm } from '@/components/appointment-form';
 import { PageHero } from '@/components/page-hero';
 import { PublicPage } from '@/components/public-page';
 import { contactHref, siteConfig } from '@/config/site';
+import { legalConfig } from '@/config/legal';
 import { isLocale } from '@/lib/i18n';
 
 type Props = { params: Promise<{ locale: string }> };
@@ -57,21 +58,21 @@ export default async function Contact({ params }: Props) {
             <Phone />{' '}
             <span>
               <small>{el ? 'Τηλέφωνο' : 'Phone'}</small>
-              {siteConfig.phone}
+              {legalConfig.identity.phone}
             </span>
           </a>
           <a href={contactHref.email}>
             <Mail />{' '}
             <span>
               <small>Email</small>
-              {siteConfig.email}
+              {legalConfig.identity.email}
             </span>
           </a>
           <span>
             <MapPin />{' '}
             <span>
               <small>{el ? 'Περιοχή εξυπηρέτησης' : 'Service area'}</small>
-              {siteConfig.serviceArea}
+              {el ? legalConfig.identity.serviceAreaEl : legalConfig.identity.serviceAreaEn}
             </span>
           </span>
           {contactHref.whatsapp && (
@@ -83,11 +84,6 @@ export default async function Contact({ params }: Props) {
               </span>
             </a>
           )}
-          <p className="placeholder-note">
-            {el
-              ? 'Τα στοιχεία σε αγκύλες είναι placeholders και πρέπει να αντικατασταθούν πριν τη δημοσίευση.'
-              : 'Bracketed details are placeholders and must be replaced before launch.'}
-          </p>
         </aside>
         <div>
           <p className="section-kicker">

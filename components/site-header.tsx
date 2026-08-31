@@ -6,7 +6,7 @@ import { Logo } from './logo';
 import { contactHref } from '@/config/site';
 import { messages, paths, type Locale } from '@/lib/i18n';
 
-export function SiteHeader({ locale, active = 'home' }: { locale: Locale; active?: keyof typeof paths }) {
+export function SiteHeader({ locale, active, languagePath }: { locale: Locale; active?: keyof typeof paths; languagePath?: string }) {
   const [open, setOpen] = useState(false);
   const m = messages[locale];
   const other = locale === 'el' ? 'en' : 'el';
@@ -15,7 +15,7 @@ export function SiteHeader({ locale, active = 'home' }: { locale: Locale; active
     ['repairs', m.nav.repairs], ['projects', m.nav.projects], ['contact', m.nav.contact],
   ] as const;
 
-  useEffect(() => { localStorage.setItem('ap-locale', locale); document.documentElement.lang = locale; }, [locale]);
+  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
 
   return (
     <header className="site-header">
@@ -24,7 +24,7 @@ export function SiteHeader({ locale, active = 'home' }: { locale: Locale; active
         {nav.map(([key, label]) => <a key={key} className={active === key ? 'active' : ''} aria-current={active === key ? 'page' : undefined} href={`/${locale}/${paths[key]}`}>{label}</a>)}
       </nav>
       <div className="header-tools">
-        <a className="language" href={`/${other}/${paths[active]}`} lang={other} hrefLang={other}>{other.toUpperCase()}</a>
+        <a className="language" href={`/${other}/${languagePath ?? (active ? paths[active] : '')}`} lang={other} hrefLang={other}>{other.toUpperCase()}</a>
         <a className="header-appointment" href={`/${locale}/contact`}>{m.appointment}</a>
         <a className="mobile-call" href={contactHref.phone} aria-label={m.call}><Phone aria-hidden="true" /></a>
         <button className="menu-toggle" type="button" aria-expanded={open} aria-controls="mobile-menu" onClick={() => setOpen(!open)} aria-label={open ? 'Close menu' : 'Open menu'}>{open ? <X /> : <Menu />}</button>

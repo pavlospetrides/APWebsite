@@ -3,10 +3,10 @@ import Image from 'next/image';
 import { ArrowUpRight, ClipboardCheck, Hammer, HousePlug, Phone, SearchCheck, ShieldCheck, Wrench } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { PublicPage } from '@/components/public-page';
-import { ExampleNote } from '@/components/example-note';
 import { CtaBand } from '@/components/cta-band';
 import { contactHref, siteConfig } from '@/config/site';
-import { categoryLabel, exampleProjects } from '@/lib/projects.seed';
+import { getPublishedProjects } from '@/lib/projects';
+import { categoryLabel } from '@/lib/project-types';
 import { isLocale, messages, type Locale } from '@/lib/i18n';
 
 type Props = { params: Promise<{ locale: string }> };
@@ -46,6 +46,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function HomePage({ params }: Props) {
   const { locale: raw } = await params; if (!isLocale(raw)) notFound(); const locale: Locale = raw; const c = copy[locale]; const m = messages[locale];
   const icons = [Hammer, HousePlug, Wrench];
+  const projects = (await getPublishedProjects()).filter((project) => project.featured).slice(0, 3);
   return <PublicPage locale={locale} active="home">
     <section className="hero-shell">
       <Image className="hero-image" src="/images/hero-new-build.webp" alt={locale === 'el' ? 'Ενδεικτική εγκατάσταση καλωδίωσης σε νέα κατοικία' : 'Example wiring installation in a new home'} fill priority sizes="100vw" />
@@ -60,7 +61,7 @@ export default async function HomePage({ params }: Props) {
 
     <section className="process-section"><div className="section"><p className="section-kicker light">{c.processKicker}</p><h2>{c.processTitle}</h2><div className="process-grid">{c.process.map(([no,title,text], i) => { const Icon = [Phone, SearchCheck, ClipboardCheck, ShieldCheck][i]; return <article key={no}><span>{no}</span><Icon /><h3>{title}</h3><p>{text}</p></article>; })}</div></div></section>
 
-    <section className="section projects-preview"><div className="section-heading"><div><p className="section-kicker">{c.projectsKicker}</p><h2>{c.projectsTitle}</h2></div><a className="text-link" href={`/${locale}/projects`}>{m.nav.projects}<ArrowUpRight /></a></div><ExampleNote locale={locale} /><div className="project-grid">{exampleProjects.filter(p=>p.featured).slice(0,3).map(project => <a className="project-card" href={`/${locale}/projects/${project.slug}`} key={project.slug}><div className="project-image"><Image src={project.cover} alt={project.alt[locale]} fill sizes="(max-width: 800px) 100vw, 33vw" /></div><div><span>{categoryLabel[project.category][locale]}</span><h3>{project.title[locale]}</h3><p>{project.description[locale]}</p></div></a>)}</div></section>
+    <section className="section projects-preview"><div className="section-heading"><div><p className="section-kicker">{c.projectsKicker}</p><h2>{c.projectsTitle}</h2></div><a className="text-link" href={`/${locale}/projects`}>{m.nav.projects}<ArrowUpRight /></a></div>{projects.length ? <div className="project-grid">{projects.map(project => <a className="project-card" href={`/${locale}/projects/${project.slug}`} key={project.slug}><div className="project-image">{project.cover && <Image src={project.cover} alt={project.coverAlt[locale]} fill sizes="(max-width: 800px) 100vw, 33vw" />}</div><div><span>{categoryLabel[project.category][locale]}</span><h3>{project.title[locale]}</h3><p>{project.description[locale]}</p></div></a>)}</div> : <p className="empty-state">{locale === 'el' ? 'Τα δημοσιευμένα έργα θα εμφανιστούν εδώ.' : 'Published projects will appear here.'}</p>}</section>
 
     <section className="area-band"><div><p className="section-kicker light">{m.area}</p><h2>{siteConfig.serviceArea}</h2></div><p>{c.areaText}</p></section>
     <CtaBand locale={locale} title={c.finalTitle} text={c.finalText} />

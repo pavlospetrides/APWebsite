@@ -11,7 +11,7 @@ export function AppointmentForm({ locale }: { locale: Locale }) {
   async function submit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault(); setState('sending'); setMessage('');
     const form = event.currentTarget; const data = Object.fromEntries(new FormData(form));
-    try { const response = await fetch('/api/appointments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...data, consent: data.consent === 'on' }) }); const result = await response.json() as { message?: string; preview?: boolean }; if (!response.ok) throw new Error(result.message || 'Request failed'); setState('success'); setMessage(result.preview ? (el ? 'Το αίτημα ελέγχθηκε. Συνδέστε το Supabase για πραγματική αποθήκευση.' : 'The request was validated. Connect Supabase for live storage.') : (el ? 'Το αίτημά σας στάλθηκε. Θα χρησιμοποιηθούν τα στοιχεία που δώσατε για επικοινωνία.' : 'Your request was sent. The details you provided will be used to contact you.')); form.reset(); }
+    try { const response = await fetch('/api/appointments', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json() as { message?: string; preview?: boolean }; if (!response.ok) throw new Error(result.message || 'Request failed'); setState('success'); setMessage(result.preview ? (el ? 'Το αίτημα ελέγχθηκε. Συνδέστε το Supabase για πραγματική αποθήκευση.' : 'The request was validated. Connect Supabase for live storage.') : (el ? 'Το αίτημά σας στάλθηκε. Θα χρησιμοποιηθούν τα στοιχεία που δώσατε για επικοινωνία.' : 'Your request was sent. The details you provided will be used to contact you.')); form.reset(); }
     catch (error) { setState('error'); setMessage(error instanceof Error ? error.message : (el ? 'Παρουσιάστηκε σφάλμα.' : 'An error occurred.')); }
   }
   return <form className="appointment-form" onSubmit={submit} noValidate>
@@ -25,7 +25,16 @@ export function AppointmentForm({ locale }: { locale: Locale }) {
       <label>{el ? 'Προτιμώμενη ώρα' : 'Preferred time'}<input name="preferredTime" type="time" /></label>
       <label className="full-width">{el ? 'Μήνυμα' : 'Message'}<textarea name="message" rows={5} minLength={10} maxLength={1500} required /></label>
       <label className="honeypot" aria-hidden="true">Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
-      <label className="consent full-width"><input type="checkbox" name="consent" required /><span>{el ? 'Συμφωνώ με την επεξεργασία των στοιχείων μου αποκλειστικά για την επικοινωνία σχετικά με αυτό το αίτημα.' : 'I consent to my details being processed solely to contact me about this request.'}</span></label>
+      <p className="privacy-notice full-width">
+        {el ? 'Με την αποστολή ζητάτε να επικοινωνήσουμε μαζί σας για το συγκεκριμένο αίτημα. Τα στοιχεία σας επεξεργάζονται όπως περιγράφεται στην ' : 'By submitting, you ask us to contact you about this enquiry. Your details are processed as described in the '}
+        <a href={`/${locale}/privacy`}>{el ? 'Πολιτική Απορρήτου' : 'Privacy Policy'}</a>.
+        {' '}{el ? 'Μην περιλαμβάνετε ευαίσθητα προσωπικά δεδομένα.' : 'Please do not include sensitive personal data.'}
+      </p>
+      <p className="appointment-disclaimer full-width">
+        {el
+          ? 'Η αποστολή αποτελεί μόνο αίτημα επικοινωνίας. Δεν επιβεβαιώνει ραντεβού, προσφορά, αποδοχή εργασίας ή σύμβαση.'
+          : 'Submission is only a contact request. It does not confirm an appointment, quotation, acceptance of work, or contract.'}
+      </p>
     </div>
     <button className="button button-primary submit-button" type="submit" disabled={state === 'sending'}>{state === 'sending' && <LoaderCircle className="spin" />}{el ? 'Αποστολή αιτήματος' : 'Send request'}</button>
     {message && <output className={`form-status ${state}`} aria-live="polite">{state === 'success' && <CheckCircle2 />}{message}</output>}

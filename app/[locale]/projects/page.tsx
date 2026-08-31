@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { PageHero } from '@/components/page-hero';
 import { PublicPage } from '@/components/public-page';
 import { ProjectsGrid } from '@/components/projects-grid';
-import { ExampleNote } from '@/components/example-note';
 import { getPublishedProjects } from '@/lib/projects';
 import { isLocale } from '@/lib/i18n';
 
@@ -13,11 +12,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const el = locale === 'el';
   return {
     title: el
-      ? 'Έργα και ενδεικτικές εργασίες'
-      : 'Projects and example services',
+      ? 'Έργα και ηλεκτρολογικές εργασίες'
+      : 'Projects and electrical work',
     description: el
-      ? 'Δείτε ενδεικτικές κατηγορίες ηλεκτρολογικών εργασιών για κατοικίες.'
-      : 'Browse example categories of residential electrical work.',
+      ? 'Δείτε δημοσιευμένα έργα ηλεκτρολογικών εργασιών για κατοικίες.'
+      : 'Browse published residential electrical projects.',
     alternates: {
       canonical: `/${locale}/projects`,
       languages: { el: '/el/projects', en: '/en/projects' },
@@ -34,7 +33,7 @@ export default async function Projects({ params }: Props) {
       <PageHero
         eyebrow={el ? 'Portfolio' : 'Portfolio'}
         title={
-          el ? 'Έργα & ενδεικτικές εργασίες' : 'Projects & example services'
+          el ? 'Έργα & ηλεκτρολογικές εργασίες' : 'Projects & electrical work'
         }
         description={
           el
@@ -49,7 +48,6 @@ export default async function Projects({ params }: Props) {
         }
       />
       <section className="section portfolio-section">
-        <ExampleNote locale={locale} />
         <ProjectsGrid locale={locale} projects={projects} />
       </section>
     </PublicPage>

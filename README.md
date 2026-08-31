@@ -1,91 +1,108 @@
 # AP Electrical Services
 
-Production-ready bilingual website and lightweight CMS for a residential electrician. The application uses the Next.js App Router programming model through Vinext, React 19, TypeScript, Tailwind CSS, Supabase Auth/PostgreSQL/Storage and Lucide icons. Greek (`/el`) is the default language and English is available at `/en`.
+Bilingual public website and private administration system built with the Next.js App Router model through Vinext, React, TypeScript and Supabase Auth/PostgreSQL/Storage.
 
-## Included
+## Security model
 
-- Greek and English home, renovations, new-builds, repairs, projects, project-detail and contact pages
-- Responsive keyboard-accessible navigation, language switching and mobile call action
-- Appointment form with server-side Zod validation, honeypot, rate limiting and consent
-- Supabase-backed admin login, project CRUD, draft/publish state, featured projects, bilingual content/alt text, multi-image upload, upload ordering and appointment status management
-- PostgreSQL schema, indexes, Row Level Security and private Storage policies
-- Per-page metadata, canonical and `hreflang` links, Open Graph/X card, sitemap, robots rules, 404 and error boundary
-- Four original local example images generated for this project plus a branded social-preview image
-
-The bundled project records and generated images are examples. The public site labels them as example services and does not claim they are completed work by Antis Petridis. Seed content is isolated in `lib/projects.seed.ts`.
+- `/admin` never renders a login or access-denied screen. Anonymous, AAL1 and non-admin requests receive the normal 404 page.
+- The private login URL is configured once through the server-only `PRIVATE_ADMIN_LOGIN_PATH` environment variable. Use a long two-segment path, do not link it, and do not publish its value.
+- A hidden route is only an extra layer. Authorization requires a valid Supabase session, TOTP MFA at `aal2`, and a matching row in `public.admin_users`.
+- Admin database and Storage operations use the logged-in user's session and remain subject to RLS. The application does not use the service-role key during normal operation.
+- Private responses use `noindex`, `nofollow`, `noarchive`, `no-store`, `DENY` framing and a no-referrer policy.
+- There is no signup, registration, create-account or public invitation flow in the application.
 
 ## Local setup
 
-Requirements: Node.js 22.13 or later and npm.
-
-1. Install dependencies with `npm install`.
+1. Install Node.js 22.13 or later and run `npm install`.
 2. Copy `.env.example` to `.env.local` and replace every placeholder.
-3. Start development with `npm run dev`.
-4. Open `http://localhost:3000`. The root redirects to Greek at `/el`.
+3. Set `PRIVATE_ADMIN_LOGIN_PATH` to a long private two-segment route beginning with `/`.
+4. Run `npm run dev` and open `http://localhost:3000`.
 
-Without Supabase variables, all public pages work with the removable seed data. The contact form runs validation in preview mode but does not persist requests, and `/admin` shows setup instructions.
+The private route value is intentionally server-only. Do not prefix it with `NEXT_PUBLIC_`.
 
-## Business details to replace
+## Required Supabase production configuration
 
-All mutable business values are centralized in `config/site.ts` and read from environment variables:
+Apply these migrations in order using the Supabase SQL Editor:
 
-- `[BUSINESS_NAME]` via `NEXT_PUBLIC_BUSINESS_NAME`
-- `[PHONE_NUMBER]` via `NEXT_PUBLIC_PHONE_NUMBER`
-- `[EMAIL_ADDRESS]` via `NEXT_PUBLIC_EMAIL_ADDRESS`
-- `[SERVICE_AREA]` via `NEXT_PUBLIC_SERVICE_AREA`
-- `[WHATSAPP_NUMBER]` via `NEXT_PUBLIC_WHATSAPP_NUMBER`; no WhatsApp link appears while this remains a placeholder
-- `NEXT_PUBLIC_SITE_URL` must be the final HTTPS origin for canonical, sitemap and social metadata
+1. `supabase/migrations/202608300001_initial_schema.sql`
+2. `supabase/migrations/202608310001_admin_mfa_hardening.sql`
+3. `supabase/migrations/202608310002_bilingual_content_and_image_variants.sql`
 
-Do not publish publicly until the visible placeholders have been replaced. No address, opening hours, reviews, prices, certifications or 24-hour promise have been invented.
+The first creates `projects`, `project_images`, `appointment_requests`, `admin_users`, `public.is_admin()`, indexes, RLS policies and the private `project-images` bucket. The second preserves `public.is_admin()` as the membership check and adds `public.is_admin_mfa()`, requiring both membership and an `aal2` JWT for all administrative reads and writes. The third safely relaxes individual EL/EN columns while enforcing that every title, description and image alt pair contains at least one valid language. It also adds `cover_storage_path` and extends the existing private Storage read policy to the optimized cover derivative without weakening MFA.
 
-## Supabase setup
+Manually disable public registration:
 
-1. Create a Supabase project.
-2. In the SQL Editor, run `supabase/migrations/202608300001_initial_schema.sql`. This creates `projects`, `project_images`, `appointment_requests`, `admin_users`, indexes, RLS policies and the private `project-images` bucket.
-3. Copy Project URL and anon key into `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Keep the service-role key in the server-only `SUPABASE_SERVICE_ROLE_KEY` variable if it is needed for future maintenance tooling. The current application does not read or use it. Never expose it or prefix it with `NEXT_PUBLIC_`.
-5. Restart the local server after changing environment variables.
+**Supabase Dashboard → Authentication → Providers → Email → “Allow new users to sign up” = OFF**
 
-The appointment endpoint, public project reads and signed-image requests use the publishable/anon key and are constrained by RLS. Ordinary admin operations use the authenticated admin session and RLS. The application never uses the service-role key.
+The label can appear under Authentication configuration depending on the Dashboard version. This manual setting is mandatory even though the application contains no signup UI.
 
-## Create the first admin
+TOTP MFA is implemented in the private login flow. Supabase TOTP MFA is normally enabled by default; confirm under **Authentication → Multi-Factor Authentication** that TOTP enrollment, challenge and verification are allowed. The first authorized login enrolls an authenticator, and subsequent logins require its six-digit code.
 
-1. In Supabase Dashboard, go to Authentication → Users and create the owner with email and password.
-2. Run this once in the SQL Editor, replacing the placeholder with the same email address:
+## Create an administrator
+
+1. In **Supabase Dashboard → Authentication → Users**, manually create the user with email and password.
+2. Add that existing Auth user to the application allowlist:
 
    ```sql
    insert into public.admin_users (user_id)
    select id
    from auth.users
-   where email = 'ADMIN_EMAIL_HERE'
+   where email = 'OWNER_EMAIL_HERE'
    on conflict (user_id) do nothing;
    ```
 
-Only authenticated users present in `admin_users` pass the admin RLS checks. The `/admin` route is not linked from the public navigation and is marked `noindex`.
+Authentication alone is insufficient. Removing the row from `public.admin_users` revokes administrative access even if the Auth user still exists.
 
-## Add a project and photos
+## Portfolio source of truth
 
-1. Open `/admin` and sign in with the Supabase admin email/password.
-2. Choose **Νέο έργο**.
-3. Fill in Greek and English title/description, category, year, optional general location and bilingual alt text.
-4. Select one or more JPG, PNG, WebP or AVIF images up to 8 MB each. The first image becomes the cover; use the arrow buttons to change the upload order before saving.
-5. Choose **Πρόχειρο** for a draft or **Δημοσιευμένο** to make it publicly readable, optionally mark it as featured, then save.
-6. Use the project row actions to preview, edit or delete. Deletion asks for confirmation and removes the corresponding Storage objects.
+Supabase is the only portfolio source used by the public website, project detail routes, sitemap and admin dashboard. Draft projects remain visible to an MFA-verified administrator and are excluded from all public reads by RLS. Unpublishing or deleting a project therefore changes the public portfolio without a second hardcoded list.
 
-Appointment requests appear in the second admin section and can be marked new, contacted or completed.
+The repository audit found four generated example records in the former `lib/projects.seed.ts`; they explicitly described themselves as examples rather than completed AP Electrical Services work. They were removed from the portfolio data path and were not migrated as real projects. No real project records or project photos were present elsewhere in the repository, and the connected Supabase project currently contains zero projects.
 
-## Replace example images
+Real projects can be entered through the private CMS. For a batch import, place reviewed records in `data/projects.json` and run:
 
-Generated starter images are in `public/images`. After Supabase is connected, upload real project photographs from `/admin`; published database projects replace the seed portfolio automatically. Remove the seed entries from `lib/projects.seed.ts` when no longer needed. Keep accurate bilingual alt text and obtain permission for every published photograph.
+```bash
+npm run import:projects -- --dry-run
+npm run import:projects
+```
+
+The importer applies the same “at least one language” rules, upserts projects by unique slug and upserts image records by Storage path. It normalizes EXIF orientation, caps gallery images at a 2,000 px long edge, creates an 8:5 cover crop, strips source metadata and uploads only quality-84 WebP derivatives. It is idempotent and does not delete projects or stale files. The manifest is deliberately empty until real project information is supplied; do not replace missing fields with invented content.
+
+## Project editor image pipeline
+
+- File content is checked by binary signature and successful browser decoding, not filename alone.
+- Sources up to 25 MB and 60 megapixels are decoded lazily, with at most two files processing concurrently.
+- `createImageBitmap(..., { imageOrientation: 'from-image' })` normalizes EXIF orientation before canvas resizing. Canvas re-encoding strips camera metadata.
+- Gallery images preserve composition and are capped at a 2,000 px long edge. Cover derivatives use a centered 8:5 crop up to 1,600×1,000 without stretching or upscaling small images.
+- Both outputs use WebP quality 0.84. The original camera file is never uploaded.
+- HEIC/HEIF is accepted only when the current browser can actually decode it (Safari 17+ can). Other browsers show a per-file Greek explanation and retain the rest of the form.
+- Pending object URLs are revoked when replaced, removed, saved or discarded.
+
+## Secrets
+
+- `.env.local` and every `.env*` file except `.env.example` are gitignored.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are public client configuration and are constrained by RLS.
+- `SUPABASE_SERVICE_ROLE_KEY` is server-only and is read only by the owner-run batch import script. Never prefix it with `NEXT_PUBLIC_`, log it, or use it in browser code.
+- Configure all environment values separately in production. Do not commit `.env.local`.
 
 ## Validation
 
-Run `npm run lint`, `npm run typecheck`, `npm run build`, keep `npm run dev` running, then run `npm run test:smoke`.
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npm run test:unit
+npm run test:image
+npm run dev
+npm run test:smoke
+```
 
-The smoke test checks the core Greek/English routes, project detail, contact, admin setup, sitemap, robots and invalid appointment rejection. `TEST_BASE_URL` can point it at another running environment.
+The unit suite covers bilingual validation/fallback, alt pairs, slug/year failures, content signatures, resize/crop geometry, legal routes, form transparency and browser-storage controls. The image benchmark generates PNG/JPEG/WebP/AVIF, large phone, rotated EXIF and parallel fixtures, then records derivative dimensions and approximate compression. With local Supabase configuration, the smoke suite creates temporary records/users and cleans them in `finally`: it verifies a valid anonymous appointment submission, denied anonymous read/update, denied non-admin and AAL1-admin read, and successful AAL2/MFA admin read, in addition to public/legal routes and private-route protections.
+
+## Legal release gate
+
+The bilingual privacy, cookie/storage, provider-information and enquiry-terms pages are implemented, but public release is intentionally blocked because legally relevant owner facts and production-provider settings remain unverified. Complete [LEGAL-COMPLIANCE-CHECKLIST.md](LEGAL-COMPLIANCE-CHECKLIST.md) and update the centralized public facts in `config/legal.ts` before publication. Do not add a cookie banner unless a fresh production scan finds non-essential storage; the current reachable application uses none.
 
 ## Deployment
 
-The build emits Cloudflare Worker-compatible output in `dist` through Vinext and the Sites Vite plugin. Configure the same environment variables as deployment secrets/values, set `NEXT_PUBLIC_SITE_URL` to the final origin, run `npm run build`, then deploy the generated Sites version. Supabase remains the durable PostgreSQL/Auth/Storage backend over HTTPS.
-
-For another platform, keep the App Router route structure and confirm its support for the Vinext/Cloudflare output, or migrate the route files to a standard current Next.js deployment without changing the Supabase schema.
+The current build emits Cloudflare Worker-compatible output through Vinext and the Sites Vite plugin. The intended production host is now Vercel at `https://apetrides.com`, but no Vercel-compatible dynamic deployment has been configured or verified; do not assume the existing Worker output can be deployed there unchanged. Deployment is prohibited until the legal release gate and hosting migration are complete. Then configure the production environment, apply all three Supabase migrations, disable signup, verify every dynamic/auth/API route on Vercel, and run the final-domain cookie/storage and mobile checks before pointing the domain at the deployment. Migration `202608310002_bilingual_content_and_image_variants.sql` must be live because public project queries expect `project_images.cover_storage_path`.
