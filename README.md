@@ -82,7 +82,8 @@ The importer applies the same “at least one language” rules, upserts project
 
 - `.env.local` and every `.env*` file except `.env.example` are gitignored.
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are public client configuration and are constrained by RLS.
-- `SUPABASE_SERVICE_ROLE_KEY` is server-only and is read only by the owner-run batch import script. Never prefix it with `NEXT_PUBLIC_`, log it, or use it in browser code.
+- `PRIVATE_ADMIN_LOGIN_PATH` is the only server-only variable required by the hosted application.
+- `SUPABASE_SERVICE_ROLE_KEY` is read only by the owner-run batch import and local security-test scripts. Do not configure it in Vercel. Never prefix it with `NEXT_PUBLIC_`, log it, or use it in browser code.
 - Configure all environment values separately in production. Do not commit `.env.local`.
 
 ## Validation
@@ -105,4 +106,8 @@ The bilingual privacy, cookie/storage, provider-information and enquiry-terms pa
 
 ## Deployment
 
-The current build emits Cloudflare Worker-compatible output through Vinext and the Sites Vite plugin. The intended production host is now Vercel at `https://apetrides.com`, but no Vercel-compatible dynamic deployment has been configured or verified; do not assume the existing Worker output can be deployed there unchanged. Deployment is prohibited until the legal release gate and hosting migration are complete. Then configure the production environment, apply all three Supabase migrations, disable signup, verify every dynamic/auth/API route on Vercel, and run the final-domain cookie/storage and mobile checks before pointing the domain at the deployment. Migration `202608310002_bilingual_content_and_image_variants.sql` must be live because public project queries expect `project_images.cover_storage_path`.
+The production build uses Vinext, Vite and Nitro's explicit `vercel` preset. `npm run build` generates the Vercel Build Output API structure in `.vercel/output`, including the server function and static assets. Cloudflare Workers, Wrangler, OpenAI Sites, D1 and R2 are not application dependencies; Supabase provides database, storage and authentication.
+
+In Vercel use the **Other** framework preset, repository root as the root directory, `npm install` as the install command, `npm run build` as the build command, and Node.js 22.x. Do not override the output directory: Nitro writes the required `.vercel/output` structure directly.
+
+Deployment remains prohibited until the legal release gate is complete. Before connecting `apetrides.com`, configure the production variables, apply all three Supabase migrations, disable public signup, verify every dynamic/auth/API route on Vercel, and run the final-domain cookie/storage and mobile checks. Migration `202608310002_bilingual_content_and_image_variants.sql` must be live because public project queries expect `project_images.cover_storage_path`.

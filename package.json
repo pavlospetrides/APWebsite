@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
-    "start": "wrangler dev --config dist/server/wrangler.json",
+    "build": "vite build",
+    "start": "vite preview",
     "lint": "oxlint app components/*.tsx lib config types proxy.ts scripts/*.mjs",
     "typecheck": "tsc --noEmit",
     "test:smoke": "node scripts/smoke-test.mjs",
@@ -29,6 +29,7 @@
     "embla-carousel-react": "8.5.2",
     "input-otp": "1.4.2",
     "lucide-react": "1.31.0",
+    "nitro": "^3.0.260610-beta",
     "react": "19.2.8",
     "react-day-picker": "9.8.1",
     "react-dom": "19.2.8",
@@ -42,10 +43,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.54.2",
-    "@cloudflare/workers-types": "5.20260831.1",
-    "@openai/sites-vite-plugin": "0.2.0",
-    "@tailwindcss/postcss": "4.2.1",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
@@ -55,11 +53,10 @@
     "oxlint": "1.76.0",
     "oxlint-tsgolint": "7.0.2001",
     "sharp": "0.35.4",
-    "tailwindcss": "4.2.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "5.9.3",
     "vite": "8.2.2",
-    "vitest": "4.1.11",
-    "wrangler": "4.127.1"
+    "vitest": "4.1.11"
   },
   "type": "module",
   "overrides": {

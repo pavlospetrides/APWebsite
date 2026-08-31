@@ -31,7 +31,7 @@ export const legalConfig = {
     applicationHost: 'Vercel',
     edgeInfrastructure: 'Vercel Edge Network / CDN',
     databaseAndAuthentication: 'Supabase',
-    productionDomain: 'https://apetrides.com',
+    productionDomain: process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN || 'https://apetrides.com',
   },
   features: {
     analytics: false,

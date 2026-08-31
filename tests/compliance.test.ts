@@ -64,7 +64,7 @@ describe('public compliance controls', () => {
     expect(config).toContain(`competentAuthorityDepartmentEn: 'Department of Electrical and Mechanical Services (EMS)'`);
     expect(config).toContain(`privacyContactEmail: 'pavlospetrides741@gmail.com'`);
     expect(config).toContain(`applicationHost: 'Vercel'`);
-    expect(config).toContain(`productionDomain: 'https://apetrides.com'`);
+    expect(config).toContain(`productionDomain: process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN || 'https://apetrides.com'`);
     expect(publicRuntime).not.toMatch(/ΦΠΑ|\bVAT\b|VAT number|VAT status|VAT registered|not VAT registered/i);
 
     expect(checklist).toMatch(/Publication status:\s*\*\*BLOCKED/i);
@@ -76,5 +76,43 @@ describe('public compliance controls', () => {
     expect(checklist).toMatch(/\bVAT\b/);
     expect(envExample).not.toContain('NEXT_PUBLIC_ELECTRICIAN_LICENCE_NUMBER');
     expect(envExample).not.toMatch(/ΦΠΑ|\bVAT\b|NEXT_PUBLIC_VAT_NUMBER/i);
+  });
+
+  it('targets Vercel through Vinext and Nitro without Cloudflare deployment coupling', async () => {
+    const [packageText, vite, tsconfig, envExample, gitignore] = await Promise.all([
+      read('package.json'),
+      read('vite.config.ts'),
+      read('tsconfig.json'),
+      read('.env.example'),
+      read('.gitignore'),
+    ]);
+    const packageJson = JSON.parse(packageText) as {
+      scripts: Record<string, string>;
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    const installed = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+    expect(packageJson.scripts.build).toBe('vite build');
+    expect(packageText.match(/"build"\s*:/g)).toHaveLength(1);
+    expect(packageJson.scripts.start).toBe('vite preview');
+    expect(vite).toContain(`from '@tailwindcss/vite'`);
+    expect(vite).toContain(`preset: 'vercel'`);
+    expect(vite).toContain('inlineDynamicImports: true');
+    expect(vite).toContain(`runtime: 'nodejs22.x'`);
+    expect(vite.indexOf('tailwindcss()')).toBeLessThan(vite.indexOf('vinext()'));
+    expect(vite.indexOf('vinext()')).toBeLessThan(vite.indexOf('nitro({'));
+    expect(vite).not.toMatch(/@tailwindcss\/postcss|@cloudflare|@openai\/sites/);
+    expect(installed).not.toHaveProperty('@tailwindcss/postcss');
+    expect(installed).not.toHaveProperty('@cloudflare/vite-plugin');
+    expect(installed).not.toHaveProperty('@cloudflare/workers-types');
+    expect(installed).not.toHaveProperty('@openai/sites-vite-plugin');
+    expect(installed).not.toHaveProperty('wrangler');
+    expect(tsconfig).not.toContain('@cloudflare/workers-types');
+    expect(envExample).not.toMatch(/NEXT_PUBLIC_LEGAL_ADDRESS|NEXT_PUBLIC_ELECTRICIAN_CERTIFICATE_TYPE|NEXT_PUBLIC_PROFESSIONAL_RULES_URL/);
+    expect(gitignore).toContain('.env*');
+    expect(gitignore).toContain('!.env.example');
+    expect(gitignore).toContain('/.output/');
+    await expect(read('.openai/hosting.json')).rejects.toThrow();
   });
 });
