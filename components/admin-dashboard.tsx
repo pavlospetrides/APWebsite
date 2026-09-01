@@ -257,7 +257,7 @@ export function AdminDashboard({ loginPath }: { loginPath: string }) {
     try {
       const { processProjectImage } = await import('@/lib/admin-image-processing');
       const processed = await processProjectImage(file);
-      const previewUrl = URL.createObjectURL(processed.galleryBlob);
+      const previewUrl = URL.createObjectURL(processed.gallery.blob);
       URL.revokeObjectURL(rawPreview);
       setEditorImages((current) => current.map((image) => image.key === key && image.kind === 'pending' ? {
         ...image, sourceFile: undefined, previewUrl, processed, status: 'ready', error: undefined,
@@ -397,9 +397,10 @@ export function AdminDashboard({ loginPath }: { loginPath: string }) {
       if (!image.processed) continue;
       setEditorImages((current) => current.map((item) => item.key === image.key && item.kind === 'pending' ? { ...item, status: 'uploading', error: undefined } : item));
       const base = `projects/${projectId}/${crypto.randomUUID()}`;
-      const storagePath = `${base}-gallery.webp`;
-      const coverStoragePath = `${base}-cover.webp`;
-      const galleryUpload = await supabase.storage.from('project-images').upload(storagePath, image.processed.galleryBlob, { contentType: 'image/webp', cacheControl: '31536000', upsert: false });
+      const { derivativeStoragePath } = await import('@/lib/admin-image-processing');
+      const storagePath = derivativeStoragePath(base, 'gallery', image.processed.gallery);
+      const coverStoragePath = derivativeStoragePath(base, 'cover', image.processed.cover);
+      const galleryUpload = await supabase.storage.from('project-images').upload(storagePath, image.processed.gallery.blob, { contentType: image.processed.gallery.mimeType, cacheControl: '31536000', upsert: false });
       if (galleryUpload.error) {
         console.error('Gallery upload failed', { code: galleryUpload.error.name });
         setEditorImages((current) => current.map((item) => item.key === image.key && item.kind === 'pending' ? { ...item, status: 'error', error: 'Η μεταφόρτωση της βελτιστοποιημένης εικόνας απέτυχε. Πάτησε αποθήκευση για νέα προσπάθεια.' } : item));
@@ -407,7 +408,7 @@ export function AdminDashboard({ loginPath }: { loginPath: string }) {
         showNotice(`Το έργο αποθηκεύτηκε, αλλά το «${image.sourceName}» δεν μεταφορτώθηκε. Οι υπόλοιπες αλλαγές διατηρήθηκαν.`, 'error');
         return;
       }
-      const coverUpload = await supabase.storage.from('project-images').upload(coverStoragePath, image.processed.coverBlob, { contentType: 'image/webp', cacheControl: '31536000', upsert: false });
+      const coverUpload = await supabase.storage.from('project-images').upload(coverStoragePath, image.processed.cover.blob, { contentType: image.processed.cover.mimeType, cacheControl: '31536000', upsert: false });
       if (coverUpload.error) {
         await supabase.storage.from('project-images').remove([storagePath]);
         console.error('Cover upload failed', { code: coverUpload.error.name });

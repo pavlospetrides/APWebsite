@@ -142,7 +142,7 @@ export function AdminProjectEditor({
       </section>
 
       <section className="cms-form-card">
-        <div className="cms-form-section-title"><span>02</span><div><h2>Εικόνες έργου</h2><p>Άμεση προεπισκόπηση, βελτιστοποίηση WebP, 8:5 εξώφυλλο και ακριβής σειρά.</p></div></div>
+        <div className="cms-form-section-title"><span>02</span><div><h2>Εικόνες έργου</h2><p>Άμεση προεπισκόπηση, βελτιστοποίηση εικόνας, 8:5 εξώφυλλο και ακριβής σειρά.</p></div></div>
         <section
           className={`cms-upload${dragging ? ' dragging' : ''}`}
           onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}

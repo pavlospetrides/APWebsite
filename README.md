@@ -72,9 +72,9 @@ The importer applies the same “at least one language” rules, upserts project
 
 - File content is checked by binary signature and successful browser decoding, not filename alone.
 - Sources up to 25 MB and 60 megapixels are decoded lazily, with at most two files processing concurrently.
-- `createImageBitmap(..., { imageOrientation: 'from-image' })` normalizes EXIF orientation before canvas resizing. Canvas re-encoding strips camera metadata.
+- `createImageBitmap(..., { imageOrientation: 'from-image' })` normalizes EXIF orientation before canvas resizing. Browsers that reject or lack that API use an EXIF-aware `HTMLImageElement` decode path instead. Canvas re-encoding strips camera metadata.
 - Gallery images preserve composition and are capped at a 2,000 px long edge. Cover derivatives use a centered 8:5 crop up to 1,600×1,000 without stretching or upscaling small images.
-- Both outputs use WebP quality 0.84. The original camera file is never uploaded.
+- Each output prefers WebP quality 0.84 and automatically falls back to JPEG quality 0.88 if WebP encoding is unavailable or unusable. Storage extensions and content types follow the generated format. The original camera file is never uploaded.
 - HEIC/HEIF is accepted only when the current browser can actually decode it (Safari 17+ can). Other browsers show a per-file Greek explanation and retain the rest of the form.
 - Pending object URLs are revoked when replaced, removed, saved or discarded.
 

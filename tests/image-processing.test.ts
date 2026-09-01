@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { containDimensions, coverOutputDimensions, coverSourceRect, detectImageKind } from '../lib/admin-image-processing';
+import { containDimensions, coverOutputDimensions, coverSourceRect, derivativeStoragePath, detectImageKind, encodeCanvasWithFallback } from '../lib/admin-image-processing';
+
+type ToBlob = HTMLCanvasElement['toBlob'];
+
+function encodingCanvas(implementation: ToBlob) {
+  return { toBlob: implementation };
+}
 
 describe('image content sniffing', () => {
   it('recognizes supported binary signatures rather than extensions', () => {
@@ -25,5 +31,58 @@ describe('resize and crop geometry', () => {
   it('does not upscale small cover sources', () => {
     expect(coverOutputDimensions(800, 600)).toEqual({ width: 800, height: 500 });
     expect(coverOutputDimensions(4000, 3000)).toEqual({ width: 1600, height: 1000 });
+  });
+});
+
+describe('browser derivative encoding', () => {
+  it('prefers a usable WebP blob and reports the matching extension and MIME type', async () => {
+    const canvas = encodingCanvas((callback, type) => callback(new Blob(['webp'], { type })));
+
+    const derivative = await encodeCanvasWithFallback(canvas);
+
+    expect(derivative.mimeType).toBe('image/webp');
+    expect(derivative.extension).toBe('webp');
+    expect(derivative.blob.size).toBeGreaterThan(0);
+    expect(derivativeStoragePath('projects/id/file', 'gallery', derivative)).toBe('projects/id/file-gallery.webp');
+  });
+
+  it('falls back to JPEG when WebP returns a null blob', async () => {
+    const requests: Array<{ type?: string; quality?: number }> = [];
+    const canvas = encodingCanvas((callback, type, quality) => {
+      requests.push({ type, quality });
+      callback(type === 'image/webp' ? null : new Blob(['jpeg'], { type }));
+    });
+
+    const derivative = await encodeCanvasWithFallback(canvas);
+
+    expect(requests).toEqual([
+      { type: 'image/webp', quality: 0.84 },
+      { type: 'image/jpeg', quality: 0.88 },
+    ]);
+    expect(derivative.mimeType).toBe('image/jpeg');
+    expect(derivative.blob.type).toBe('image/jpeg');
+    expect(derivative.extension).toBe('jpg');
+    expect(derivativeStoragePath('projects/id/file', 'cover', derivative)).toBe('projects/id/file-cover.jpg');
+  });
+
+  it('falls back to JPEG when WebP returns an empty blob', async () => {
+    const canvas = encodingCanvas((callback, type) => callback(new Blob(type === 'image/webp' ? [] : ['jpeg'], { type })));
+
+    await expect(encodeCanvasWithFallback(canvas)).resolves.toMatchObject({ mimeType: 'image/jpeg', extension: 'jpg' });
+  });
+
+  it('falls back to JPEG when WebP encoding throws', async () => {
+    const canvas = encodingCanvas((callback, type) => {
+      if (type === 'image/webp') throw new Error('WebP unsupported');
+      callback(new Blob(['jpeg'], { type }));
+    });
+
+    await expect(encodeCanvasWithFallback(canvas)).resolves.toMatchObject({ mimeType: 'image/jpeg', extension: 'jpg' });
+  });
+
+  it('reports a final processing error only when WebP and JPEG both fail', async () => {
+    const canvas = encodingCanvas((callback) => callback(null));
+
+    await expect(encodeCanvasWithFallback(canvas)).rejects.toMatchObject({ code: 'encode' });
   });
 });

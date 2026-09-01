@@ -3,12 +3,20 @@ export const MAX_SOURCE_PIXELS = 60_000_000;
 export const GALLERY_LONG_EDGE = 2000;
 export const COVER_WIDTH = 1600;
 export const COVER_HEIGHT = 1000;
-export const OUTPUT_QUALITY = 0.84;
+export const WEBP_QUALITY = 0.84;
+export const JPEG_FALLBACK_QUALITY = 0.88;
+
+export type DerivativeMimeType = 'image/webp' | 'image/jpeg';
+export type EncodedDerivative = {
+  blob: Blob;
+  mimeType: DerivativeMimeType;
+  extension: 'webp' | 'jpg';
+};
 
 export type SupportedImageKind = 'jpeg' | 'png' | 'webp' | 'avif' | 'heic';
 export type ProcessedProjectImage = {
-  galleryBlob: Blob;
-  coverBlob: Blob;
+  gallery: EncodedDerivative;
+  cover: EncodedDerivative;
   width: number;
   height: number;
   originalBytes: number;
@@ -63,28 +71,83 @@ export function coverOutputDimensions(width: number, height: number) {
   };
 }
 
-function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+type BlobEncodingCanvas = Pick<HTMLCanvasElement, 'toBlob'>;
+
+function canvasBlob(canvas: BlobEncodingCanvas, mimeType: DerivativeMimeType, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob((blob) => {
-      if (!blob || blob.type !== 'image/webp') {
-        reject(new ImageProcessingError('encode', 'Η συσκευή δεν μπόρεσε να δημιουργήσει βελτιστοποιημένο WebP.'));
+      if (!blob || blob.size === 0 || blob.type.toLowerCase() !== mimeType) {
+        reject(new Error(`Canvas returned an unusable ${mimeType} blob.`));
         return;
       }
       resolve(blob);
-    }, 'image/webp', OUTPUT_QUALITY);
+    }, mimeType, quality);
   });
 }
 
-async function decodeOriented(file: File, kind: SupportedImageKind): Promise<ImageBitmap> {
+export async function encodeCanvasWithFallback(canvas: BlobEncodingCanvas): Promise<EncodedDerivative> {
   try {
-    // `from-image` applies EXIF orientation during decode. Drawing the bitmap to
-    // canvas then normalizes pixels and drops camera metadata from both outputs.
-    return await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const blob = await canvasBlob(canvas, 'image/webp', WEBP_QUALITY);
+    return { blob, mimeType: 'image/webp', extension: 'webp' };
   } catch {
-    if (kind === 'heic') {
-      throw new ImageProcessingError('unsupported-heic', 'Η μορφή HEIC/HEIF δεν υποστηρίζεται από αυτό το πρόγραμμα περιήγησης ή τη συσκευή. Εξήγαγε τη φωτογραφία ως JPEG και δοκίμασε ξανά.');
+    try {
+      const blob = await canvasBlob(canvas, 'image/jpeg', JPEG_FALLBACK_QUALITY);
+      return { blob, mimeType: 'image/jpeg', extension: 'jpg' };
+    } catch {
+      throw new ImageProcessingError('encode', 'Η συσκευή δεν μπόρεσε να δημιουργήσει βελτιστοποιημένη εικόνα. Δοκίμασε άλλη εικόνα ή μικρότερο αρχείο.');
     }
-    throw new ImageProcessingError('decode', 'Δεν ήταν δυνατή η ανάγνωση της εικόνας. Το αρχείο μπορεί να είναι κατεστραμμένο ή η μορφή να μην υποστηρίζεται στη συσκευή.');
+  }
+}
+
+export function derivativeStoragePath(base: string, variant: 'gallery' | 'cover', derivative: EncodedDerivative) {
+  return `${base}-${variant}.${derivative.extension}`;
+}
+
+type DecodedImage = {
+  source: CanvasImageSource;
+  width: number;
+  height: number;
+  close: () => void;
+};
+
+function decodeWithImageElement(file: File): Promise<DecodedImage> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = () => resolve({
+      source: image,
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      close: () => {
+        image.src = '';
+        URL.revokeObjectURL(objectUrl);
+      },
+    });
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Image element decode failed.'));
+    };
+    image.src = objectUrl;
+  });
+}
+
+async function decodeOriented(file: File, kind: SupportedImageKind): Promise<DecodedImage> {
+  try {
+    if (typeof createImageBitmap !== 'function') throw new Error('createImageBitmap is unavailable.');
+    // Do not retry without `from-image`: Safari and Chromium have historically
+    // differed here. The HTMLImageElement fallback also applies EXIF orientation.
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    return { source: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close() };
+  } catch {
+    try {
+      return await decodeWithImageElement(file);
+    } catch {
+      if (kind === 'heic') {
+        throw new ImageProcessingError('unsupported-heic', 'Η μορφή HEIC/HEIF δεν υποστηρίζεται από αυτό το πρόγραμμα περιήγησης ή τη συσκευή. Εξήγαγε τη φωτογραφία ως JPEG και δοκίμασε ξανά.');
+      }
+      throw new ImageProcessingError('decode', 'Δεν ήταν δυνατή η ανάγνωση της εικόνας. Το αρχείο μπορεί να είναι κατεστραμμένο ή η μορφή να μην υποστηρίζεται στη συσκευή.');
+    }
   }
 }
 
@@ -98,45 +161,50 @@ export async function processProjectImage(file: File): Promise<ProcessedProjectI
     throw new ImageProcessingError('not-image', 'Το περιεχόμενο του αρχείου δεν είναι υποστηριζόμενη εικόνα JPEG, PNG, WebP, AVIF ή HEIC/HEIF.');
   }
 
-  const bitmap = await decodeOriented(file, kind);
+  const decoded = await decodeOriented(file, kind);
   try {
-    if (!bitmap.width || !bitmap.height || bitmap.width * bitmap.height > MAX_SOURCE_PIXELS) {
+    if (!decoded.width || !decoded.height || decoded.width * decoded.height > MAX_SOURCE_PIXELS) {
       throw new ImageProcessingError('dimensions', 'Η εικόνα έχει μη έγκυρες ή υπερβολικά μεγάλες διαστάσεις (μέγιστο 60 megapixel).');
     }
 
-    const gallerySize = containDimensions(bitmap.width, bitmap.height);
-    const gallery = document.createElement('canvas');
-    gallery.width = gallerySize.width;
-    gallery.height = gallerySize.height;
-    const galleryContext = gallery.getContext('2d', { alpha: false });
+    const gallerySize = containDimensions(decoded.width, decoded.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = gallerySize.width;
+    canvas.height = gallerySize.height;
+    const galleryContext = canvas.getContext('2d', { alpha: false });
     if (!galleryContext) throw new ImageProcessingError('encode', 'Δεν ήταν δυνατή η προετοιμασία της εικόνας.');
     galleryContext.imageSmoothingEnabled = true;
     galleryContext.imageSmoothingQuality = 'high';
-    galleryContext.drawImage(bitmap, 0, 0, gallery.width, gallery.height);
+    galleryContext.drawImage(decoded.source, 0, 0, canvas.width, canvas.height);
 
-    const cover = document.createElement('canvas');
-    const coverSize = coverOutputDimensions(bitmap.width, bitmap.height);
-    cover.width = coverSize.width;
-    cover.height = coverSize.height;
-    const coverContext = cover.getContext('2d', { alpha: false });
-    if (!coverContext) throw new ImageProcessingError('encode', 'Δεν ήταν δυνατή η προετοιμασία του εξωφύλλου.');
-    const source = coverSourceRect(bitmap.width, bitmap.height);
-    coverContext.imageSmoothingEnabled = true;
-    coverContext.imageSmoothingQuality = 'high';
-    coverContext.drawImage(bitmap, source.x, source.y, source.width, source.height, 0, 0, cover.width, cover.height);
+    try {
+      // Encode sequentially and reuse one derivative-sized canvas so large phone
+      // photos do not retain gallery and cover canvases at the same time.
+      const gallery = await encodeCanvasWithFallback(canvas);
+      const coverSize = coverOutputDimensions(decoded.width, decoded.height);
+      canvas.width = coverSize.width;
+      canvas.height = coverSize.height;
+      const coverContext = canvas.getContext('2d', { alpha: false });
+      if (!coverContext) throw new ImageProcessingError('encode', 'Δεν ήταν δυνατή η προετοιμασία του εξωφύλλου.');
+      const source = coverSourceRect(decoded.width, decoded.height);
+      coverContext.imageSmoothingEnabled = true;
+      coverContext.imageSmoothingQuality = 'high';
+      coverContext.drawImage(decoded.source, source.x, source.y, source.width, source.height, 0, 0, canvas.width, canvas.height);
+      const cover = await encodeCanvasWithFallback(canvas);
 
-    const [galleryBlob, coverBlob] = await Promise.all([canvasBlob(gallery), canvasBlob(cover)]);
-    gallery.width = gallery.height = cover.width = cover.height = 1;
-    return {
-      galleryBlob,
-      coverBlob,
-      width: gallerySize.width,
-      height: gallerySize.height,
-      originalBytes: file.size,
-      optimizedBytes: galleryBlob.size + coverBlob.size,
-    };
+      return {
+        gallery,
+        cover,
+        width: gallerySize.width,
+        height: gallerySize.height,
+        originalBytes: file.size,
+        optimizedBytes: gallery.blob.size + cover.blob.size,
+      };
+    } finally {
+      canvas.width = canvas.height = 1;
+    }
   } finally {
-    bitmap.close();
+    decoded.close();
   }
 }
 
